@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -23,6 +23,7 @@ from homeassistant.util import dt as dt_util
 from . import AsfynConfigEntry
 from .const import DOMAIN, MANUFACTURER
 from .coordinator import AsfynCoordinator, Meter
+from .prices import Tariff
 
 UNIT = {
     "GJ": (UnitOfEnergy.GIGA_JOULE, SensorDeviceClass.ENERGY),
@@ -43,6 +44,30 @@ class AsfynSensorDescription(SensorEntityDescription):
 
 def _round(value: Any, digits: int = 3) -> float | None:
     return None if value is None else round(float(value), digits)
+
+
+def _latest_bill(meter: Meter) -> dict | None:
+    """Newest invoice that is a bill, not a payment."""
+    bills = [i for i in meter.invoices if (i.get("amount") or 0) > 0 and i.get("date")]
+    return max(bills, key=lambda i: i["date"]) if bills else None
+
+
+def _bill_attrs(meter: Meter) -> dict[str, Any]:
+    bill = _latest_bill(meter)
+    if not bill:
+        return {}
+    return {
+        "dato": (bill.get("date") or "")[:10] or None,
+        "forfald": (bill.get("dueDate") or "")[:10] or None,
+        "type": bill.get("type"),
+        "betales_automatisk": bill.get("isHandledByAutomaticPayment"),
+    }
+
+
+def _due_date(meter: Meter) -> date | None:
+    bill = _latest_bill(meter)
+    due = (bill or {}).get("dueDate")
+    return date.fromisoformat(due[:10]) if due else None
 
 
 def _descriptions(meter: Meter) -> list[AsfynSensorDescription]:
@@ -134,7 +159,56 @@ def _descriptions(meter: Meter) -> list[AsfynSensorDescription]:
                     },
                 )
             )
+    out += [
+        AsfynSensorDescription(
+            key="last_bill",
+            translation_key="last_bill",
+            unit_key="currency",
+            device_class=SensorDeviceClass.MONETARY,
+            value_fn=lambda m: (_latest_bill(m) or {}).get("amount"),
+            attrs_fn=_bill_attrs,
+        ),
+        AsfynSensorDescription(
+            key="due_date",
+            translation_key="due_date",
+            unit_key="",
+            device_class=SensorDeviceClass.DATE,
+            value_fn=_due_date,
+        ),
+    ]
     return out
+
+
+@dataclass(frozen=True, kw_only=True)
+class TariffSensorDescription(SensorEntityDescription):
+    """A Fjernvarme Fyn price from the current price folder."""
+
+    unit_suffix: str
+    value_fn: Callable[[Tariff], float | None]
+
+
+TARIFF_SENSORS = (
+    TariffSensorDescription(
+        key="price_gj", translation_key="price_gj", unit_suffix="/GJ",
+        value_fn=lambda t: t.per_gj,
+    ),
+    TariffSensorDescription(
+        key="price_mwh", translation_key="price_mwh", unit_suffix="/MWh",
+        value_fn=lambda t: t.per_mwh,
+    ),
+    TariffSensorDescription(
+        key="price_m3", translation_key="price_m3", unit_suffix="/m³",
+        value_fn=lambda t: t.per_m3,
+    ),
+    TariffSensorDescription(
+        key="meter_charge", translation_key="meter_charge", unit_suffix="/år",
+        value_fn=lambda t: t.meter_charge,
+    ),
+    TariffSensorDescription(
+        key="effect_charge", translation_key="effect_charge", unit_suffix="/m²/år",
+        value_fn=lambda t: t.effect_per_m2,
+    ),
+)
 
 
 async def async_setup_entry(
@@ -143,11 +217,59 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-    async_add_entities(
+    entities: list[SensorEntity] = [
         AsfynSensor(coordinator, meter.key, description)
-        for meter in coordinator.data.values()
+        for meter in coordinator.data.meters.values()
         for description in _descriptions(meter)
+    ]
+    entities += [
+        TariffSensor(coordinator, meter.key, description)
+        for meter in coordinator.data.meters.values()
+        if meter.category == "heat"
+        for description in TARIFF_SENSORS
+    ]
+    async_add_entities(entities)
+
+
+def _device_info(meter: Meter) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, meter.key)},
+        name=f"{meter.name} {meter.meter_number}".strip(),
+        manufacturer=MANUFACTURER,
+        model=meter.meter_type or meter.category,
+        serial_number=meter.meter_number or None,
     )
+
+
+class TariffSensor(CoordinatorEntity[AsfynCoordinator], SensorEntity):
+    """Current Fjernvarme Fyn price, incl. VAT."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    entity_description: TariffSensorDescription
+
+    def __init__(
+        self, coordinator: AsfynCoordinator, meter_key: str, description: TariffSensorDescription
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{meter_key}_{description.key}"
+        self._attr_native_unit_of_measurement = (
+            f"{coordinator.hass.config.currency}{description.unit_suffix}"
+        )
+        self._attr_device_info = _device_info(coordinator.data.meters[meter_key])
+
+    @property
+    def native_value(self) -> float | None:
+        tariff = self.coordinator.data.tariff_today()
+        return self.entity_description.value_fn(tariff) if tariff else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        tariff = self.coordinator.data.tariff_today()
+        if not tariff:
+            return None
+        return {"gaeldende_fra": tariff.valid_from, "kilde": tariff.url, "inkl_moms": True}
 
 
 class AsfynSensor(CoordinatorEntity[AsfynCoordinator], SensorEntity):
@@ -162,24 +284,19 @@ class AsfynSensor(CoordinatorEntity[AsfynCoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._meter_key = meter_key
-        meter = coordinator.data[meter_key]
+        meter = coordinator.data.meters[meter_key]
         self._attr_unique_id = f"{meter_key}_{description.key}"
         if description.unit_key in UNIT:
             unit, device_class = UNIT[description.unit_key]
             self._attr_native_unit_of_measurement = unit
             self._attr_device_class = device_class
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, meter_key)},
-            name=f"{meter.name} {meter.meter_number}".strip(),
-            manufacturer=MANUFACTURER,
-            model=meter.meter_type or meter.category,
-            serial_number=meter.meter_number or None,
-            suggested_area=None,
-        )
+        elif description.unit_key == "currency":
+            self._attr_native_unit_of_measurement = coordinator.hass.config.currency
+        self._attr_device_info = _device_info(meter)
 
     @property
     def _meter(self) -> Meter | None:
-        return self.coordinator.data.get(self._meter_key)
+        return self.coordinator.data.meters.get(self._meter_key)
 
     @property
     def available(self) -> bool:

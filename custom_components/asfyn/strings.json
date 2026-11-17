@@ -29,17 +29,60 @@
   },
   "entity": {
     "sensor": {
-      "year_gj": { "name": "Energy this year" },
-      "month_gj": { "name": "Energy this month" },
-      "day_gj": { "name": "Energy latest day" },
-      "year_m3": { "name": "Volume this year" },
-      "month_m3": { "name": "Volume this month" },
-      "day_m3": { "name": "Volume latest day" },
-      "day_cooling": { "name": "Cooling latest day" },
-      "month_cooling": { "name": "Average cooling this month" },
-      "benchmark": { "name": "Compared to similar homes" },
-      "reading_gj": { "name": "Meter reading energy" },
-      "reading_m3": { "name": "Meter reading volume" }
+      "year_gj": {
+        "name": "Energy this year"
+      },
+      "month_gj": {
+        "name": "Energy this month"
+      },
+      "day_gj": {
+        "name": "Energy latest day"
+      },
+      "year_m3": {
+        "name": "Volume this year"
+      },
+      "month_m3": {
+        "name": "Volume this month"
+      },
+      "day_m3": {
+        "name": "Volume latest day"
+      },
+      "day_cooling": {
+        "name": "Cooling latest day"
+      },
+      "month_cooling": {
+        "name": "Average cooling this month"
+      },
+      "benchmark": {
+        "name": "Compared to similar homes"
+      },
+      "reading_gj": {
+        "name": "Meter reading energy"
+      },
+      "reading_m3": {
+        "name": "Meter reading volume"
+      },
+      "last_bill": {
+        "name": "Latest bill"
+      },
+      "due_date": {
+        "name": "Due date"
+      },
+      "price_gj": {
+        "name": "Energy price"
+      },
+      "price_mwh": {
+        "name": "Energy price per MWh"
+      },
+      "price_m3": {
+        "name": "Price per m³ district heating water"
+      },
+      "meter_charge": {
+        "name": "Yearly meter charge"
+      },
+      "effect_charge": {
+        "name": "Effect charge"
+      }
     }
   }
 }

@@ -29,17 +29,60 @@
   },
   "entity": {
     "sensor": {
-      "year_gj": { "name": "Energi i år" },
-      "month_gj": { "name": "Energi denne måned" },
-      "day_gj": { "name": "Energi seneste døgn" },
-      "year_m3": { "name": "Vandmængde i år" },
-      "month_m3": { "name": "Vandmængde denne måned" },
-      "day_m3": { "name": "Vandmængde seneste døgn" },
-      "day_cooling": { "name": "Afkøling seneste døgn" },
-      "month_cooling": { "name": "Gennemsnitlig afkøling denne måned" },
-      "benchmark": { "name": "Sammenlignet med lignende husstande" },
-      "reading_gj": { "name": "Målerstand energi" },
-      "reading_m3": { "name": "Målerstand vandmængde" }
+      "year_gj": {
+        "name": "Energi i år"
+      },
+      "month_gj": {
+        "name": "Energi denne måned"
+      },
+      "day_gj": {
+        "name": "Energi seneste døgn"
+      },
+      "year_m3": {
+        "name": "Vandmængde i år"
+      },
+      "month_m3": {
+        "name": "Vandmængde denne måned"
+      },
+      "day_m3": {
+        "name": "Vandmængde seneste døgn"
+      },
+      "day_cooling": {
+        "name": "Afkøling seneste døgn"
+      },
+      "month_cooling": {
+        "name": "Gennemsnitlig afkøling denne måned"
+      },
+      "benchmark": {
+        "name": "Sammenlignet med lignende husstande"
+      },
+      "reading_gj": {
+        "name": "Målerstand energi"
+      },
+      "reading_m3": {
+        "name": "Målerstand vandmængde"
+      },
+      "last_bill": {
+        "name": "Seneste regning"
+      },
+      "due_date": {
+        "name": "Forfaldsdato"
+      },
+      "price_gj": {
+        "name": "Energipris"
+      },
+      "price_mwh": {
+        "name": "Energipris pr. MWh"
+      },
+      "price_m3": {
+        "name": "Pris pr. m³ fjernvarmevand"
+      },
+      "meter_charge": {
+        "name": "Årligt målerbidrag"
+      },
+      "effect_charge": {
+        "name": "Effektbidrag"
+      }
     }
   }
 }

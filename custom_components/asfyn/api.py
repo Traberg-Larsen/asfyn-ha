@@ -226,6 +226,14 @@ class AsfynClient:
             or {}
         )
 
+    async def get_invoices(self, customer: str, installation: str) -> list[dict]:
+        return (
+            await self._get(
+                "selfservice", f"/api/customers/{customer}/installations/{installation}/invoices"
+            )
+            or []
+        )
+
     async def get_consumption(
         self,
         customer: str,

@@ -13,9 +13,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install pyflakes
+      - run: pip install pyflakes pypdf aiohttp
       - run: python -m py_compile custom_components/asfyn/*.py
       - run: python -m pyflakes custom_components/asfyn
+      - run: python tests/check_prices.py
 
   hassfest:
     runs-on: ubuntu-latest
