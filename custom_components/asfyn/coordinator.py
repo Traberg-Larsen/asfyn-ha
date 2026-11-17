@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 import logging
-from typing import Any
 
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import (
