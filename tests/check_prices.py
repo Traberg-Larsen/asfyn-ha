@@ -14,6 +14,7 @@ spec = importlib.util.spec_from_file_location(
     "prices", Path(__file__).parents[1] / "custom_components" / "asfyn" / "prices.py"
 )
 prices = importlib.util.module_from_spec(spec)
+sys.modules["prices"] = prices  # dataclasses look the module up here
 spec.loader.exec_module(prices)
 
 
