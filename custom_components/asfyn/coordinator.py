@@ -127,6 +127,15 @@ class AsfynCoordinator(DataUpdateCoordinator[dict[str, Meter]]):
         meters: dict[str, Meter] = {}
         for customer in self.config_entry.data[CONF_CUSTOMERS]:
             data = await self.client.get_estates_with_products(customer)
+            _LOGGER.debug(
+                "Customer %s products: %s",
+                customer,
+                [
+                    (p.get("category"), p.get("installationId"), p.get("subscriptionState"))
+                    for e in data.get("estates") or []
+                    for p in e.get("products") or []
+                ],
+            )
             for estate in data.get("estates") or []:
                 for product in estate.get("products") or []:
                     category = product.get("category")

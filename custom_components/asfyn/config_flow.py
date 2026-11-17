@@ -27,9 +27,7 @@ class AsfynConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def _check(self, email: str, password: str) -> tuple[list[str], str | None]:
-        session = async_create_clientsession(
-            self.hass, auto_cleanup=False, cookie_jar=aiohttp.CookieJar()
-        )
+        session = async_create_clientsession(self.hass, cookie_jar=aiohttp.CookieJar())
         client = AsfynClient(session, email, password)
         try:
             await client.login()
@@ -39,8 +37,6 @@ class AsfynConfigFlow(ConfigFlow, domain=DOMAIN):
         except AsfynError:
             _LOGGER.exception("asfyn login failed")
             return [], "cannot_connect"
-        finally:
-            await session.close()
         if not customers:
             return [], "no_customers"
         return customers, None

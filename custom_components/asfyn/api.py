@@ -28,8 +28,14 @@ SSO = "https://accounts.forsyningslogin.dk"
 REDIRECT_URI = f"{SITE}/select-customer/"
 SCOPE = "openid profile customer offline_access"
 TIMEOUT = aiohttp.ClientTimeout(total=30)
-# The API only returns the asfyn products (heat, water, sewer) with a Danish culture.
-API_HEADERS = {"Accept": "application/json", "Accept-Language": "da-DK"}
+# The API is shared with energifyn.dk; it picks the site (and so whether the asfyn
+# products heat, water and sewer are included) from the calling origin.
+API_HEADERS = {
+    "Accept": "application/json",
+    "Accept-Language": "da-DK",
+    "Origin": SITE,
+    "Referer": f"{SITE}/",
+}
 
 
 class AsfynError(Exception):
