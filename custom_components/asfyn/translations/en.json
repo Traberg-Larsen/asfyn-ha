@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Administrationsservice Fyn",
+        "description": "Log in with the e-mail and password you use on asfyn.dk. MitID cannot be used here; create an e-mail login on asfyn.dk first if you only use MitID.",
+        "data": {
+          "email": "E-mail",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Log in again",
+        "description": "asfyn.dk refused the saved password for {email}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail or password was refused.",
+      "cannot_connect": "Could not reach asfyn.dk or forsyningslogin.dk.",
+      "no_customers": "The login has no customer number linked. Link one on asfyn.dk first."
+    },
+    "abort": {
+      "already_configured": "This login is already set up.",
+      "reauth_successful": "Logged in again."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "year_gj": { "name": "Energy this year" },
+      "month_gj": { "name": "Energy this month" },
+      "day_gj": { "name": "Energy latest day" },
+      "year_m3": { "name": "Volume this year" },
+      "month_m3": { "name": "Volume this month" },
+      "day_m3": { "name": "Volume latest day" },
+      "day_cooling": { "name": "Cooling latest day" },
+      "month_cooling": { "name": "Average cooling this month" },
+      "benchmark": { "name": "Compared to similar homes" },
+      "reading_gj": { "name": "Meter reading energy" },
+      "reading_m3": { "name": "Meter reading volume" }
+    }
+  }
+}

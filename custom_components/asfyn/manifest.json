@@ -1,0 +1,13 @@
+{
+  "domain": "asfyn",
+  "name": "Administrationsservice Fyn (asfyn.dk)",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["recorder"],
+  "documentation": "https://github.com/Traberg-Larsen/asfyn-ha",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Traberg-Larsen/asfyn-ha/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

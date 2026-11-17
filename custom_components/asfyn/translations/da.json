@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Administrationsservice Fyn",
+        "description": "Log ind med den e-mail og det kodeord, du bruger på asfyn.dk. MitID kan ikke bruges her; opret et e-mail-login på asfyn.dk først, hvis du kun bruger MitID.",
+        "data": {
+          "email": "E-mail",
+          "password": "Kodeord"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Log ind igen",
+        "description": "asfyn.dk afviste det gemte kodeord for {email}.",
+        "data": {
+          "password": "Kodeord"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail eller kodeord blev afvist.",
+      "cannot_connect": "Kunne ikke få forbindelse til asfyn.dk eller forsyningslogin.dk.",
+      "no_customers": "Der er intet kundenummer knyttet til login'et. Tilknyt det på asfyn.dk først."
+    },
+    "abort": {
+      "already_configured": "Dette login er allerede sat op.",
+      "reauth_successful": "Logget ind igen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "year_gj": { "name": "Energi i år" },
+      "month_gj": { "name": "Energi denne måned" },
+      "day_gj": { "name": "Energi seneste døgn" },
+      "year_m3": { "name": "Vandmængde i år" },
+      "month_m3": { "name": "Vandmængde denne måned" },
+      "day_m3": { "name": "Vandmængde seneste døgn" },
+      "day_cooling": { "name": "Afkøling seneste døgn" },
+      "month_cooling": { "name": "Gennemsnitlig afkøling denne måned" },
+      "benchmark": { "name": "Sammenlignet med lignende husstande" },
+      "reading_gj": { "name": "Målerstand energi" },
+      "reading_m3": { "name": "Målerstand vandmængde" }
+    }
+  }
+}
