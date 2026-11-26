@@ -22,7 +22,7 @@ from homeassistant.util import dt as dt_util
 
 from . import AsfynConfigEntry
 from .const import DOMAIN, MANUFACTURER
-from .coordinator import AsfynCoordinator, Meter
+from .coordinator import STALE_AFTER, AsfynCoordinator, Meter
 from .prices import Tariff
 
 UNIT = {
@@ -217,18 +217,28 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-    entities: list[SensorEntity] = [
-        AsfynSensor(coordinator, meter.key, description)
-        for meter in coordinator.data.meters.values()
-        for description in _descriptions(meter)
-    ]
-    entities += [
-        TariffSensor(coordinator, meter.key, description)
-        for meter in coordinator.data.meters.values()
-        if meter.category == "heat"
-        for description in TARIFF_SENSORS
-    ]
-    async_add_entities(entities)
+    added: set[str] = set()
+
+    def _add_new() -> None:
+        # Local change: a meter that failed at start-up gets its sensors when it first comes in.
+        entities: list[SensorEntity] = []
+        for meter in coordinator.data.meters.values():
+            for description in _descriptions(meter):
+                uid = f"{meter.key}_{description.key}"
+                if uid not in added:
+                    added.add(uid)
+                    entities.append(AsfynSensor(coordinator, meter.key, description))
+            if meter.category == "heat":
+                for description in TARIFF_SENSORS:
+                    uid = f"{meter.key}_{description.key}"
+                    if uid not in added:
+                        added.add(uid)
+                        entities.append(TariffSensor(coordinator, meter.key, description))
+        if entities:
+            async_add_entities(entities)
+
+    _add_new()
+    entry.async_on_unload(coordinator.async_add_listener(_add_new))
 
 
 def _device_info(meter: Meter) -> DeviceInfo:
@@ -300,7 +310,24 @@ class AsfynSensor(CoordinatorEntity[AsfynCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        return super().available and self._meter is not None
+        # Local change: stays available while one meter's data is late; unavailable only when
+        # this meter has had no fresh data for STALE_AFTER (the other meters are not affected).
+        meter = self._meter
+        if meter is None:
+            return False
+        if meter.updated is not None:
+            return dt_util.utcnow() - meter.updated < STALE_AFTER
+        return super().available
+
+    @property
+    def _fresh_attrs(self) -> dict[str, Any]:
+        meter = self._meter
+        if meter is None or meter.updated is None:
+            return {}
+        out: dict[str, Any] = {"opdateret": meter.updated.isoformat()}
+        if meter.error:
+            out["seneste_fejl"] = meter.error[:200]
+        return out
 
     @property
     def native_value(self) -> Any:
@@ -317,4 +344,5 @@ class AsfynSensor(CoordinatorEntity[AsfynCoordinator], SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         fn = self.entity_description.attrs_fn
         meter = self._meter
-        return fn(meter) if fn and meter else None
+        attrs = (fn(meter) if fn and meter else None) or {}
+        return {**attrs, **self._fresh_attrs} or None
