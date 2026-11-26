@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import re
 from datetime import date, datetime, timedelta
 import logging
 
@@ -36,6 +37,9 @@ _LOGGER = logging.getLogger(__name__)
 UNIT_LABELS = {"GJ": "GJ", "m3": "m³", "C": "°C"}
 UNIT_CLASS = {"GJ": "energy", "m3": "volume", "C": "temperature"}
 PRICE_CHECK_INTERVAL = timedelta(hours=24)
+# Local change: each meter is fetched on its own. When one fails, the others still update and
+# the failed one keeps its last data; its sensors only turn unavailable after STALE_AFTER.
+STALE_AFTER = timedelta(hours=36)
 
 
 @dataclass
@@ -59,6 +63,8 @@ class Meter:
     last_day: dict[str, tuple[date, float]] = field(default_factory=dict)
     invoices: list[dict] = field(default_factory=list)
     month_cache: dict[tuple[str, int, int], dict] = field(default_factory=dict)
+    updated: datetime | None = None  # local: last time this meter's data came in
+    error: str | None = None  # local: why the latest update of this meter failed
 
     @property
     def key(self) -> str:
@@ -112,6 +118,19 @@ def daily_values(response: dict, today: date) -> list[tuple[date, float, bool]]:
     return out
 
 
+def short_error(err: Exception | str) -> str:
+    """Local: a short reason without URLs or customer numbers (shown in the UI)."""
+    text = str(err)
+    code = re.search(r"failed: (\d{3})", text)
+    if code:
+        return f"asfyn server error {code.group(1)}"
+    return re.sub(r"/api/\S*|https?://\S*|\d{4,}", "…", text)[:80]
+
+
+# Local: what a meter offers when asfyn's product lookup fails (the daily data has its own endpoint).
+DEFAULT_FILTERS = {"heat": ["month"], "water": ["month"]}
+
+
 def statistic_id(meter: Meter, kind: str) -> str:
     return f"{DOMAIN}:{meter.category}_{meter.installation}_{meter.meter}_{kind}".lower()
 
@@ -155,8 +174,23 @@ class AsfynCoordinator(DataUpdateCoordinator[AsfynData]):
     async def _fetch(self) -> dict[str, Meter]:
         today = dt_util.now().date()
         meters: dict[str, Meter] = {}
+        old: dict[str, Meter] = dict(self.data.meters) if self.data else {}
+        errors: list[str] = []
         for customer in self.config_entry.data[CONF_CUSTOMERS]:
-            data = await self.client.get_estates_with_products(customer)
+            try:
+                data = await self.client.get_estates_with_products(customer)
+            except AsfynAuthError:
+                raise
+            except AsfynError as err:
+                # The meter list itself failed: keep every meter we had for this customer.
+                kept = {k: m for k, m in old.items() if m.customer == customer}
+                if not kept:
+                    raise
+                _LOGGER.warning("asfyn meter list failed, keeping the last data: %s", err)
+                for m in kept.values():
+                    m.error = short_error(err)
+                meters.update(kept)
+                continue
             _LOGGER.debug(
                 "Customer %s products: %s",
                 customer,
@@ -184,18 +218,50 @@ class AsfynCoordinator(DataUpdateCoordinator[AsfynData]):
                         meter_type=product.get("meterType") or "",
                         address=estate.get("address") or "",
                     )
-                    await self._fetch_meter(meter, today)
+                    try:
+                        await self._fetch_meter(meter, today, old.get(meter.key))
+                    except AsfynAuthError:
+                        raise
+                    except AsfynError as err:
+                        previous = old.get(meter.key)
+                        errors.append(f"{category}: {short_error(err)}")
+                        _LOGGER.warning(
+                            "asfyn %s meter failed (%s); %s", category, err,
+                            "keeping its last data" if previous else "will try again next update",
+                        )
+                        if previous:
+                            previous.error = short_error(err)
+                            meters[meter.key] = previous
+                        continue
+                    meter.updated = dt_util.utcnow()
                     meters[meter.key] = meter
+        if not meters:
+            raise AsfynError("No asfyn meter could be read (" + "; ".join(errors) + ")")
         return meters
 
-    async def _fetch_meter(self, meter: Meter, today: date) -> None:
-        info = await self.client.get_product(
-            meter.customer, meter.installation, meter.category, meter.meter
-        )
-        meter.filters = info.get("availableFilters") or []
-        meter.years = sorted(int(y) for y in info.get("availableYears") or [])
+    async def _fetch_meter(self, meter: Meter, today: date, previous: Meter | None = None) -> None:
+        try:
+            info = await self.client.get_product(
+                meter.customer, meter.installation, meter.category, meter.meter
+            )
+        except AsfynAuthError:
+            raise
+        except AsfynError as err:
+            # Local: the product lookup only gives the data views, years and yearly reading.
+            # Carry on with what we knew (or the usual views) and still read the daily data.
+            if previous is None and meter.category not in DEFAULT_FILTERS:
+                raise
+            _LOGGER.debug("asfyn %s product lookup failed, using defaults: %s", meter.category, err)
+            meter.filters = previous.filters if previous else DEFAULT_FILTERS[meter.category]
+            meter.years = previous.years if previous else [today.year]
+            meter.readings = dict(previous.readings) if previous else {}
+            meter.error = "details: " + short_error(err)
+            info = None
+        if info is not None:
+            meter.filters = info.get("availableFilters") or []
+            meter.years = sorted(int(y) for y in info.get("availableYears") or [])
         for unit, key in (("m3", "latestReadingsM3"), ("GJ", "latestReadingsGJ")):
-            reading = info.get(key)
+            reading = (info or {}).get(key)
             if reading and reading.get("value") is not None:
                 meter.readings[unit] = (
                     float(reading["value"]),
